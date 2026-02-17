@@ -38,34 +38,46 @@ class AuthController extends Controller
         ], 201);
     }
 
-    public function login(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'login' => 'required|string', // ← UBAH dari 'email' jadi 'login'
-            'password' => 'required',
-        ]);
+public function login(Request $request)
+{
+    $validator = Validator::make($request->all(), [
+        'login' => 'required|string',
+        'password' => 'required',
+    ]);
 
-        if ($validator->fails()) {
-            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
-        }
-
-        // ← CEK APAKAH INPUT EMAIL ATAU USERNAME
-        $loginField = filter_var($request->login, FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
-        
-        $user = User::where($loginField, $request->login)->first();
-
-        if (!$user || !Hash::check($request->password, $user->password)) {
-            return response()->json(['success' => false, 'message' => 'Invalid credentials'], 401);
-        }
-
-        $user->tokens()->delete();
-        $token = $user->createToken('auth_token')->plainTextToken;
-
-        return response()->json([
-            'success' => true,
-            'data' => ['user' => $user, 'token' => $token]
-        ]);
+    if ($validator->fails()) {
+        return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
     }
+
+    $loginField = filter_var($request->login, FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
+    
+    $user = User::where($loginField, $request->login)->first();
+
+    // Akun tidak ditemukan
+    if (!$user) {
+        $label = $loginField === 'email' ? 'Email' : 'Username';
+        return response()->json([
+            'success' => false,
+            'message' => "$label '{$request->login}' not found. Please check or register first."
+        ], 401);
+    }
+
+    // Password salah
+    if (!Hash::check($request->password, $user->password)) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Incorrect password. Please try again.'
+        ], 401);
+    }
+
+    $user->tokens()->delete();
+    $token = $user->createToken('auth_token')->plainTextToken;
+
+    return response()->json([
+        'success' => true,
+        'data' => ['user' => $user, 'token' => $token]
+    ]);
+}
 
     public function logout(Request $request)
     {
